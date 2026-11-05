@@ -67,10 +67,15 @@ with st.form("registro_cliente"):
 
     if guardar:
         if nombre and direccion and comuna:
+            latitud, longitud = obtener_coordenadas(direccion, comuna)
+            #cordenadas obtenidas automáticamente 
             supabase.table("Clientes").insert({
                 "Cliente": nombre,
                 "Direccion": direccion,
-                "Comuna": comuna
+                "Comuna": comuna,
+                "Latitud": latitud,
+                "Longitud": longitud
+                
             }).execute()
             st.success(f"Cliente {nombre} guardado correctamente")
             
