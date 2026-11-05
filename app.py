@@ -58,3 +58,22 @@ if respuesta.data:
     st.dataframe(respuesta.data, hide_index=True)
 else:
     st.info("Todavía no hay clientes registrados")
+
+
+# Seleccionar clientes para la ruta del día
+st.subheader("🚚 Planificar ruta del día")
+
+if respuesta.data:
+    opciones = {
+        f"{cliente['Cliente']} - {cliente['Comuna']} (ID {cliente['id']})": cliente['id']
+        for cliente in respuesta.data
+    }
+
+    seleccionados = st.multiselect(
+        "Selecciona los clientes que Gabo visitará:",
+        options=list(opciones.keys())
+    )
+
+    st.info(f"Clientes seleccionados: {len(seleccionados)}")
+else:
+    st.warning("Primero debes registrar clientes.")
