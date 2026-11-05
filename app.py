@@ -212,7 +212,7 @@ if respuesta.data:
                             st.write(f"{posicion + 1}. 🚚 {clientes_ruta[indice - 1]['Cliente']}")
                     url_maps = "https://www.google.com/maps/dir/?" + urlencode({"api": 1, "origin": direcciones_maps[0], "destination": direcciones_maps[-1], "waypoints": "|".join(direcciones_maps[1:-1]), "travelmode": "driving"})
                     st.link_button("🗺️ Abrir ruta en Google Maps", url_maps)
-                    except (requests.RequestException, ValueError, KeyError, TypeError):
+                except (requests.RequestException, ValueError, KeyError, TypeError):
                     st.error("No se pudieron consultar las distancias. Intenta nuevamente.")
 else:
     st.warning("Primero debes registrar clientes.")
