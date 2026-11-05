@@ -51,7 +51,11 @@ supabase = create_client(
     st.secrets["SUPABASE_URL"],
     st.secrets["SUPABASE_SERVICE_ROLE_KEY"]
 )
-
+# Bodega principal de GABO RUTAS
+BODEGA_NOMBRE = "Bodega Quilicura"
+BODEGA_DIRECCION = "Av. Presidente Eduardo Frei Montalva 8301, Quilicura"
+BODEGA_LATITUD = -33.361074
+BODEGA_LONGITUD = -70.697689
 # Pantalla principal
 st.title("🚚 GABO RUTAS")
 st.write("Bienvenido al planificador de rutas de reparto")
