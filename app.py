@@ -168,9 +168,19 @@ if respuesta.data:
     )
 
     st.info(f"Clientes seleccionados: {len(seleccionados)}")
-clientes_ruta = [
+    clientes_ruta = [
             opciones[nombre]
             for nombre in seleccionados
-]
+    ]
+    if clientes_ruta:
+            coordenadas_ruta = [
+                (BODEGA_LATITUD, BODEGA_LONGITUD)
+            ]
+
+            for cliente in clientes_ruta:
+                if cliente["Latitud"] is not None and cliente["Longitud"] is not None:
+                    coordenadas_ruta.append(
+                        (cliente["Latitud"], cliente["Longitud"])
+                    )
 else:
     st.warning("Primero debes registrar clientes.")
