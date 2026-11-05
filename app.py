@@ -199,6 +199,8 @@ if respuesta.data:
                         coordenadas_ruta
                     )
                     st.success("Distancias por carretera calculadas correctamente")
+                    mejor_orden, distancia_total = optimizar_ruta(distancias)
+                    st.success(f"Ruta optimizada: {distancia_total / 1000:.2f} km")
                 except (requests.RequestException, ValueError, KeyError, TypeError):
                     st.error("No se pudieron consultar las distancias. Intenta nuevamente.")
 else:
