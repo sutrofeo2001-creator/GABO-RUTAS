@@ -201,6 +201,12 @@ if respuesta.data:
                     st.success("Distancias por carretera calculadas correctamente")
                     mejor_orden, distancia_total = optimizar_ruta(distancias)
                     st.success(f"Ruta optimizada: {distancia_total / 1000:.2f} km")
+                    st.subheader("📍 Orden de visitas")
+                     for posicion, indice in enumerate(mejor_orden):
+                      if indice == 0:
+                            st.write(f"{posicion + 1}. 🏠 Bodega Quilicura")
+                      else:
+                    st.write(f"{posicion + 1}. 🚚 {clientes_ruta[indice - 1]['Cliente']}")
                 except (requests.RequestException, ValueError, KeyError, TypeError):
                     st.error("No se pudieron consultar las distancias. Intenta nuevamente.")
 else:
