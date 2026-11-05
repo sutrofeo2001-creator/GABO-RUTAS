@@ -46,3 +46,15 @@ with st.form("registro_cliente"):
             
         else:
             st.warning("Completa todos los campos")
+
+# Mostrar clientes guardados
+st.subheader("📋 Lista de clientes")
+
+respuesta = supabase.table("Clientes").select(
+    "id,Cliente,Direccion,Comuna"
+).order("id").execute()
+
+if respuesta.data:
+    st.dataframe(respuesta.data, hide_index=True)
+else:
+    st.info("Todavía no hay clientes registrados")
