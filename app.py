@@ -17,7 +17,7 @@ if not hmac.compare_digest(
     st.stop()
 # Buscar coordenadas automáticamente
 def obtener_coordenadas(direccion, comuna):
-    direccion_completa = f"{direccion}, {comuna}, Santiago, Chile"
+    direccion_completa = f"{direccion}, {comuna}, Chile"
 
     try:
         respuesta_geo = requests.get(
@@ -68,7 +68,12 @@ with st.form("registro_cliente"):
     if guardar:
         if nombre and direccion and comuna:
             latitud, longitud = obtener_coordenadas(direccion, comuna)
+            if latitud is None or 
+            longitud is None:
+    st.error("No se encontró la dirección. Revisa la calle, número y comuna.")
+    st.stop()
             #cordenadas obtenidas automáticamente 
+            
             supabase.table("Clientes").insert({
                 "Cliente": nombre,
                 "Direccion": direccion,
