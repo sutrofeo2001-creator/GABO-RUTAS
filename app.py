@@ -178,7 +178,10 @@ if respuesta.data:
             ]
 
             for cliente in clientes_ruta:
-                if cliente["Latitud"] is not None and cliente["Longitud"] is not None:
+                if (
+            cliente.get("Latitud") is not None
+            and cliente.get("Longitud") is not None
+        ):
                     coordenadas_ruta.append(
                         (cliente["Latitud"], cliente["Longitud"])
                     )
