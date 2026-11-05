@@ -168,5 +168,9 @@ if respuesta.data:
     )
 
     st.info(f"Clientes seleccionados: {len(seleccionados)}")
+clientes_ruta = [
+            opciones[nombre]
+            for nombre in seleccionados
+]
 else:
     st.warning("Primero debes registrar clientes.")
