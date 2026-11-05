@@ -37,7 +37,7 @@ with st.form("registro_cliente"):
 
     if guardar:
         if nombre and direccion and comuna:
-            supabase.table("clientes").insert({
+            supabase.table("Clientes").insert({
                 "nombre": nombre,
                 "direccion": direccion,
                 "comuna": comuna
