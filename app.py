@@ -185,5 +185,15 @@ if respuesta.data:
             if len(coordenadas_ruta) - 1 != len(clientes_ruta):
                 st.error("Hay clientes sin coordenadas. Revisa sus direcciones antes de calcular la ruta.")
                 st.stop()
+            if len(clientes_ruta) > 8:
+                st.warning("Por ahora puedes seleccionar hasta 8 clientes por ruta.")
+            else:
+                try:
+                    distancias, duraciones = obtener_matriz_rutas(
+                        coordenadas_ruta
+                    )
+                    st.success("Distancias por carretera calculadas correctamente")
+                except (requests.RequestException, ValueError, KeyError, TypeError):
+                    st.error("No se pudieron consultar las distancias. Intenta nuevamente.")
 else:
     st.warning("Primero debes registrar clientes.")
