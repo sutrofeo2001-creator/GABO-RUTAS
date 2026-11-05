@@ -144,7 +144,7 @@ with st.form("registro_cliente"):
 st.subheader("📋 Lista de clientes")
 
 respuesta = supabase.table("Clientes").select(
-    "id,Cliente,Direccion,Comuna"
+    "id,Cliente,Direccion,Comuna,Latitud,Longitud"
 ).order("id").execute()
 
 if respuesta.data:
