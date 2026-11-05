@@ -40,7 +40,7 @@ with st.form("registro_cliente"):
             supabase.table("Clientes").insert({
                 "nombre": nombre,
                 "direccion": direccion,
-                "comuna": comuna
+                "Comuna": comuna
             }).execute()
             st.success(f"Cliente {nombre} guardado correctamente")
             
