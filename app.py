@@ -3,6 +3,7 @@ import hmac
 from itertools import permutations
 from supabase import create_client
 import requests
+from urllib.parse import urlencode
 # Pedir contraseña antes de entrar
 password = st.text_input(
     "🔒 Contraseña de acceso",
@@ -200,14 +201,18 @@ if respuesta.data:
                     )
                     st.success("Distancias por carretera calculadas correctamente")
                     mejor_orden, distancia_total = optimizar_ruta(distancias)
-                    st.success(f"Ruta optimizada: {distancia_total / 1000:.2f} km")
+                    orden_clientes = [clientes_ruta[i - 1] for i in mejor_orden[1:-1]]
+                    direcciones_maps = [BODEGA_DIRECCION] + [c["Direccion"] + ", " + c["Comuna"] + ", Chile" for c in orden_clientes] + [BODEGA_DIRECCION]
+       st.success(f"Ruta optimizada: {distancia_total / 1000:.2f} km")
                     st.subheader("📍 Orden de visitas")
                     for posicion, indice in enumerate(mejor_orden):
                       if indice == 0:
                             st.write(f"{posicion + 1}. 🏠 Bodega Quilicura")
                       else:
                             st.write(f"{posicion + 1}. 🚚 {clientes_ruta[indice - 1]['Cliente']}")
-                except (requests.RequestException, ValueError, KeyError, TypeError):
+                    url_maps = "https://www.google.com/maps/dir/?" + urlencode({"api": 1, "origin": direcciones_maps[0], "destination": direcciones_maps[-1], "waypoints": "|".join(direcciones_maps[1:-1]), "travelmode": "driving"})
+                    st.link_button("🗺️ Abrir ruta en Google Maps", url_maps)
+                    except (requests.RequestException, ValueError, KeyError, TypeError):
                     st.error("No se pudieron consultar las distancias. Intenta nuevamente.")
 else:
     st.warning("Primero debes registrar clientes.")
