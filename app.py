@@ -68,10 +68,12 @@ with st.form("registro_cliente"):
     if guardar:
         if nombre and direccion and comuna:
             latitud, longitud = obtener_coordenadas(direccion, comuna)
-            if latitud is None or 
-            longitud is None:
-    st.error("No se encontró la dirección. Revisa la calle, número y comuna.")
-    st.stop()
+            if latitud is None:
+                st.error("Dirección no encontrada")
+                st.stop()
+            if longitud is None:
+                st.error("Dirección no encontrada")
+                st.stop()
             #cordenadas obtenidas automáticamente 
             
             supabase.table("Clientes").insert({
