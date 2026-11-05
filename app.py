@@ -75,6 +75,29 @@ def obtener_matriz_rutas(coordenadas):
         raise ValueError("No se pudo calcular la ruta")
 
     return datos["distances"], datos["durations"]
+    # Buscar el recorrido mas corto
+def optimizar_ruta(distancias):
+    cantidad = len(distancias) - 1
+
+    if cantidad == 0:
+        return [0, 0], 0
+
+    mejor_orden = None
+    menor_distancia = float("inf")
+
+    for orden in permutations(range(1, cantidad + 1)):
+        ruta = [0] + list(orden) + [0]
+
+        total = sum(
+            distancias[ruta[i]][ruta[i + 1]]
+            for i in range(len(ruta) - 1)
+        )
+
+        if total < menor_distancia:
+            menor_distancia = total
+            mejor_orden = ruta
+
+    return mejor_orden, menor_distancia
 # Bodega principal de GABO RUTAS
 BODEGA_NOMBRE = "Bodega Quilicura"
 BODEGA_DIRECCION = "Av. Presidente Eduardo Frei Montalva 8301, Quilicura"
