@@ -203,7 +203,7 @@ if respuesta.data:
                     mejor_orden, distancia_total = optimizar_ruta(distancias)
                     orden_clientes = [clientes_ruta[i - 1] for i in mejor_orden[1:-1]]
                     direcciones_maps = [BODEGA_DIRECCION] + [c["Direccion"] + ", " + c["Comuna"] + ", Chile" for c in orden_clientes] + [BODEGA_DIRECCION]
-       st.success(f"Ruta optimizada: {distancia_total / 1000:.2f} km")
+                    st.success(f"Ruta optimizada: {distancia_total / 1000:.2f} km")
                     st.subheader("📍 Orden de visitas")
                     for posicion, indice in enumerate(mejor_orden):
                       if indice == 0:
