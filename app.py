@@ -15,6 +15,36 @@ if not hmac.compare_digest(
     if password:
         st.error("Contraseña incorrecta")
     st.stop()
+# Buscar coordenadas automáticamente
+def obtener_coordenadas(direccion, comuna):
+    direccion_completa = f"{direccion}, {comuna}, Santiago, Chile"
+
+    try:
+        respuesta_geo = requests.get(
+            "https://nominatim.openstreetmap.org/search",
+            params={
+                "q": direccion_completa,
+                "format": "json",
+                "limit": 1,
+                "countrycodes": "cl"
+            },
+            headers={
+                "User-Agent": "GaboRutas/1.0 (aplicacion de reparto)"
+            },
+            timeout=10
+        )
+        respuesta_geo.raise_for_status()
+        resultados = respuesta_geo.json()
+
+        if resultados:
+            return (
+                float(resultados[0]["lat"]),
+                float(resultados[0]["lon"])
+            )
+    except (requests.RequestException, ValueError, KeyError):
+        pass
+
+    return None, None
 
 # Conectar con Supabase
 supabase = create_client(
