@@ -182,5 +182,8 @@ if respuesta.data:
                     coordenadas_ruta.append(
                         (cliente["Latitud"], cliente["Longitud"])
                     )
+            if len(coordenadas_ruta) - 1 != len(clientes_ruta):
+                st.error("Hay clientes sin coordenadas. Revisa sus direcciones antes de calcular la ruta.")
+                st.stop()
 else:
     st.warning("Primero debes registrar clientes.")
