@@ -52,6 +52,29 @@ supabase = create_client(
     st.secrets["SUPABASE_URL"],
     st.secrets["SUPABASE_SERVICE_ROLE_KEY"]
 )
+# Consultar distancias por carretera
+def obtener_matriz_rutas(coordenadas):
+    puntos = ";".join(
+        f"{lon},{lat}" for lat, lon in coordenadas
+    )
+
+    url = (
+        "https://router.project-osrm.org/table/v1/driving/"
+        + puntos
+    )
+
+    respuesta = requests.get(
+        url,
+        params={"annotations": "distance,duration"},
+        timeout=20
+    )
+    respuesta.raise_for_status()
+    datos = respuesta.json()
+
+    if datos.get("code") != "Ok":
+        raise ValueError("No se pudo calcular la ruta")
+
+    return datos["distances"], datos["durations"]
 # Bodega principal de GABO RUTAS
 BODEGA_NOMBRE = "Bodega Quilicura"
 BODEGA_DIRECCION = "Av. Presidente Eduardo Frei Montalva 8301, Quilicura"
