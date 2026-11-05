@@ -169,8 +169,11 @@ if respuesta.data:
 
     st.info(f"Clientes seleccionados: {len(seleccionados)}")
     clientes_ruta = [
-            opciones[nombre]
-            for nombre in seleccionados
+    cliente
+    for cliente in respuesta.data
+    if cliente["id"] in [
+        opciones[nombre] for nombre in seleccionados
+    ]
     ]
     if clientes_ruta:
             coordenadas_ruta = [
