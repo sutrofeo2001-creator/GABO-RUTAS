@@ -208,7 +208,9 @@ if respuesta.data:
                     st.subheader("🚚 Distancia por tramo")
                     for i in range(len(mejor_orden) - 1):
                         km_tramo = distancias[mejor_orden[i]][mejor_orden[i + 1]] / 1000
-                        st.write(f"Tramo {i + 1}: {km_tramo:.2f} km")
+                        origen = "Bodega Quilicura" if mejor_orden[i] == 0 else clientes_ruta[mejor_orden[i] - 1]["Cliente"]
+                        destino = "Bodega Quilicura" if mejor_orden[i + 1] == 0 else clientes_ruta[mejor_orden[i + 1] - 1]["Cliente"]
+                        st.write(f"🚚 {origen} → {destino}: {km_tramo:.2f} km")
                     for posicion, indice in enumerate(mejor_orden):
                       if indice == 0:
                             st.write(f"{posicion + 1}. 🏠 Bodega Quilicura")
