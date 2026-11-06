@@ -39,12 +39,10 @@ def obtener_coordenadas(direccion, comuna):
         resultados = respuesta_geo.json()
 
         if resultados:
-            st.session_state["opciones_direcciones"] 
-            = resultados
-               return (
-                float(resultados[0]["lat"]),
-                float(resultados[0]["lon"])
-            )
+          return (
+            float(resultados[0]["lat"]),
+            float(resultados[0]["lon"])
+          )
     except (requests.RequestException, ValueError, KeyError):
         pass
 
