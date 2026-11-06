@@ -205,6 +205,10 @@ if respuesta.data:
                     direcciones_maps = [BODEGA_DIRECCION] + [c["Direccion"] + ", " + c["Comuna"] + ", Chile" for c in orden_clientes] + [BODEGA_DIRECCION]
                     st.success(f"Ruta optimizada: {distancia_total / 1000:.2f} km")
                     st.subheader("📍 Orden de visitas")
+                    st.subheader("🚚 Distancia por tramo")
+                    for i in range(len(mejor_orden) - 1):
+                        km_tramo = distancias[mejor_orden[i]][mejor_orden[i + 1]] / 1000
+                        st.write(f"Tramo {i + 1}: {km_tramo:.2f} km")
                     for posicion, indice in enumerate(mejor_orden):
                       if indice == 0:
                             st.write(f"{posicion + 1}. 🏠 Bodega Quilicura")
