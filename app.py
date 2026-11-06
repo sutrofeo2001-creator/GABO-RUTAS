@@ -27,7 +27,7 @@ def obtener_coordenadas(direccion, comuna):
             params={
                 "q": direccion_completa,
                 "format": "json",
-                "limit": 1,
+                "limit": 5,
                 "countrycodes": "cl"
             },
             headers={
