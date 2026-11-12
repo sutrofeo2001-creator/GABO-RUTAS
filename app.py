@@ -4,6 +4,8 @@ from itertools import permutations
 from supabase import create_client
 import requests
 from urllib.parse import urlencode
+from rapidocr_onnxruntime import RapidOCR
+from PIL import Image
 # Pedir contraseña antes de entrar
 password = st.text_input(
     "🔒 Contraseña de acceso",
