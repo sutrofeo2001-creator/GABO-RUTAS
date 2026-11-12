@@ -1,4 +1,4 @@
 streamlit
 supabase
 requests
-rapidocr-onnxruntime
+rapidocr
