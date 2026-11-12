@@ -110,10 +110,11 @@ st.write("Bienvenido al planificador de rutas de reparto")
 
 st.subheader("📋 Registrar nuevo cliente")
 
-with st.form("registro_cliente"):
-
 st.subheader("📸 Escanear factura")
 foto_factura = st.camera_input("Tomar foto de factura PRISA o PRILOGI")
+
+with st.form("registro_cliente"):
+
     nombre = st.text_input("Nombre del cliente")
     direccion = st.text_input("Dirección")
     comuna = st.text_input("Comuna")
