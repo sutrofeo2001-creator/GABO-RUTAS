@@ -127,7 +127,7 @@ if foto_factura is not None:
         st.session_state["comuna_cliente"] = ""
         for i, linea in enumerate(lineas_factura):
             if "SEÑOR" in linea.upper() and i + 1 < len(lineas_factura):
-            st.session_state["nombre_cliente"] = lineas_factura[i + 1]
+                st.session_state["nombre_cliente"] = lineas_factura[i + 1]
             if i + 2 < len(lineas_factura):
                     st.session_state["direccion_cliente"] = lineas_factura[i + 2]
             if i + 4 < len(lineas_factura):
