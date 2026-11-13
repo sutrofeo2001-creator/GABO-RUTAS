@@ -118,9 +118,9 @@ if foto_factura is not None:
     import numpy as np
     imagen = np.array(Image.open(foto_factura).convert("RGB"))
     lector = RapidOCR()
-    resultados, _ = lector(imagen)
-    if resultados:
-        texto_factura = "\n".join(item[1] for item in resultados)
+    resultado_ocr = lector(imagen)
+    if resultado_ocr.txts:
+        texto_factura = "\n".join(resultado_ocr.txts)
         st.text_area("Texto detectado en la factura", texto_factura, height=200)
     else:
         st.warning("No se pudo reconocer texto en la fotografía.")
