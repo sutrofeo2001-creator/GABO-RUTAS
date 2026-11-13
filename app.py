@@ -121,14 +121,25 @@ if foto_factura is not None:
     resultado_ocr = lector(imagen)
     if resultado_ocr.txts:
         texto_factura = "\n".join(resultado_ocr.txts)
+        lineas_factura = [linea.strip() for linea in resultado_ocr.txts if linea.strip()]
+        st.session_state["nombre_cliente"] = ""
+        st.session_state["direccion_cliente"] = ""
+        st.session_state["comuna_cliente"] = ""
+        for i, linea in enumerate(lineas_factura):
+            if "SEÑOR" in linea.upper() and i + 1 < len(lineas_factura):
+            st.session_state["nombre_cliente"] = lineas_factura[i + 1]
+            if i + 2 < len(lineas_factura):
+                    st.session_state["direccion_cliente"] = lineas_factura[i + 2]
+            if i + 4 < len(lineas_factura):
+                    st.session_state["comuna_cliente"] = lineas_factura[i + 4]   
         st.text_area("Texto detectado en la factura", texto_factura, height=200)
     else:
         st.warning("No se pudo reconocer texto en la fotografía.")
 with st.form("registro_cliente"):
 
-    nombre = st.text_input("Nombre del cliente")
-    direccion = st.text_input("Dirección")
-    comuna = st.text_input("Comuna")
+    nombre = st.text_input("Nombre del cliente", key="nombre_cliente")
+    direccion = st.text_input("Dirección", key="direccion_cliente")
+    comuna = st.text_input("Comuna", key="comuna_cliente")
 
     guardar = st.form_submit_button("💾 Guardar cliente")
 
