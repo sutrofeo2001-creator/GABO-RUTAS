@@ -213,8 +213,6 @@ def extraer_datos(lineas):
                 comuna = resto[3] if len(resto) > 3 else resto[2]
                 return nombre, direccion, comuna
     return None
-
-
 # Pantalla principal
 st.title("🚚 GABO RUTAS")
 st.write("Bienvenido al planificador de rutas de reparto")
@@ -394,7 +392,6 @@ if foto is not None:
     if st.button("🔄 Procesar de nuevo"):
         st.session_state.pop("foto_procesada", None)
         st.rerun()
-
 # Registro manual (por si falla el escaneo)
 
 st.subheader("📍 Agregar por coordenadas")
@@ -565,4 +562,20 @@ if respuesta.data:
                 st.subheader("🚚 Distancia por tramo")
                 for i in range(len(mejor_orden) - 1):
                     km_tramo = distancias[mejor_orden[i]][mejor_orden[i + 1]] / 1000
-                    origen = BODEGA_NOMBRE if mejo
+                    origen = BODEGA_NOMBRE if mejor_orden[i] == 0 else clientes_ruta[mejor_orden[i] - 1]["Cliente"]
+                    destino = BODEGA_NOMBRE if mejor_orden[i + 1] == 0 else clientes_ruta[mejor_orden[i + 1] - 1]["Cliente"]
+                    st.write(f"🚚 {origen} → {destino}: {km_tramo:.2f} km")
+
+                url_maps = "https://www.google.com/maps/dir/?" + urlencode({
+                    "api": 1,
+                    "origin": direcciones_maps[0],
+                    "destination": direcciones_maps[-1],
+                    "waypoints": "|".join(direcciones_maps[1:-1]),
+                    "travelmode": "driving"
+                })
+                st.link_button("🗺️ Abrir ruta en Google Maps", url_maps)
+
+            except (requests.RequestException, ValueError, KeyError, TypeError):
+                st.error("No se pudieron consultar las distancias. Intenta nuevamente.")
+else:
+    st.warning("Primero debes registrar clientes.")
