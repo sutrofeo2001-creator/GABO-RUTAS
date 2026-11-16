@@ -14,7 +14,11 @@ from rapidocr import RapidOCR
 from streamlit_webrtc import webrtc_streamer, WebRtcMode
 from PIL import Image, ImageOps
 
+---------------------------------------------------------------
 
+Acceso con contraseña
+
+---------------------------------------------------------------
 
 password = st.text_input("🔒 Contraseña de acceso", type="password")
 
@@ -23,10 +27,11 @@ if password:
 st.error("Contraseña incorrecta")
 st.stop()
 
+---------------------------------------------------------------
 
 Conexiones y configuración
 
------------------------------------------------------------
+---------------------------------------------------------------
 
 supabase = create_client(
 st.secrets["SUPABASE_URL"],
@@ -38,11 +43,11 @@ BODEGA_DIRECCION = "Av. Presidente Eduardo Frei Montalva 8301, Quilicura"
 BODEGA_LATITUD = -33.361074
 BODEGA_LONGITUD = -70.697689
 
------------------------------------------------------------
+---------------------------------------------------------------
 
 Funciones
 
------------------------------------------------------------
+---------------------------------------------------------------
 
 @st.cache_resource
 def cargar_ocr():
@@ -213,20 +218,20 @@ comuna = resto[3] if len(resto) > 3 else resto[2]
 return nombre, direccion, comuna
 return None
 
------------------------------------------------------------
+---------------------------------------------------------------
 
 Pantalla principal
 
------------------------------------------------------------
+---------------------------------------------------------------
 
 st.title("🚚 GABO RUTAS")
 st.write("Bienvenido al planificador de rutas de reparto")
 
------------------------------------------------------------
+---------------------------------------------------------------
 
 Escanear factura (automático: foto -> OCR -> guardar)
 
------------------------------------------------------------
+---------------------------------------------------------------
 
 st.subheader("📸 Escanear factura en vivo")
 st.caption("Enciende la cámara y apunta a la zona «SEÑOR(ES)» de la factura.")
@@ -399,11 +404,11 @@ if st.button("🔄 Procesar de nuevo"):
     st.session_state.pop("foto_procesada", None)  
     st.rerun()
 
------------------------------------------------------------
+---------------------------------------------------------------
 
 Registro manual (por si falla el escaneo)
 
------------------------------------------------------------
+---------------------------------------------------------------
 
 st.subheader("📍 Agregar por coordenadas")
 st.caption(
@@ -500,11 +505,11 @@ if guardar:
     else:  
         st.warning("Completa todos los campos")
 
------------------------------------------------------------
+---------------------------------------------------------------
 
 Lista de clientes
 
------------------------------------------------------------
+---------------------------------------------------------------
 
 st.subheader("📋 Lista de clientes")
 
@@ -517,11 +522,11 @@ st.dataframe(respuesta.data, hide_index=True)
 else:
 st.info("Todavía no hay clientes registrados")
 
------------------------------------------------------------
+---------------------------------------------------------------
 
 Planificar ruta del día
 
------------------------------------------------------------
+---------------------------------------------------------------
 
 st.subheader("🚚 Planificar ruta del día")
 
