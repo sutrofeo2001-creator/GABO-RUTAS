@@ -1,13 +1,16 @@
 import streamlit as st
 import hmac
 import hashlib
+import re
+import time
+import unicodedata
 import numpy as np
 import requests
 from itertools import permutations
 from urllib.parse import urlencode
 from supabase import create_client
 from rapidocr import RapidOCR
-from PIL import Image
+from PIL import Image, ImageOps
 
 # ---------------------------------------------------------------
 # Acceso con contraseña
@@ -42,8 +45,7 @@ def cargar_ocr():
     return RapidOCR()
 
 
-def obtener_coordenadas(direccion, comuna):
-    direccion_completa = f"{direccion}, {comuna}, Chile"
+def _buscar_nominatim(direccion_completa):
     try:
         respuesta_geo = requests.get(
             "https://nominatim.openstreetmap.org/search",
@@ -62,6 +64,26 @@ def obtener_coordenadas(direccion, comuna):
             return float(resultados[0]["lat"]), float(resultados[0]["lon"])
     except (requests.RequestException, ValueError, KeyError):
         pass
+    return None, None
+
+
+def obtener_coordenadas(direccion, comuna):
+    # Prueba varias versiones de la dirección, de la más exacta a la más simple
+    limpia = re.sub(r"\b[A-Za-z]{1,2}-?\d+\b", "", direccion)  # quita códigos tipo D-825
+    limpia = re.sub(r"\s+", " ", limpia).strip(" ,.-")
+
+    variantes = [f"{direccion}, {comuna}, Chile"]
+    if limpia and limpia != direccion:
+        variantes.append(f"{limpia}, {comuna}, Chile")
+    if limpia:
+        variantes.append(f"{limpia}, Chile")
+
+    for i, variante in enumerate(variantes):
+        if i > 0:
+            time.sleep(1)  # Nominatim pide máximo 1 consulta por segundo
+        lat, lon = _buscar_nominatim(variante)
+        if lat is not None:
+            return lat, lon
     return None, None
 
 
@@ -101,12 +123,22 @@ def optimizar_ruta(distancias):
     return mejor_orden, menor_distancia
 
 
+def normalizar(texto):
+    # Quita tildes y pasa a mayúsculas (SEÑOR y SENOR quedan iguales)
+    return unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode().upper()
+
+
 def extraer_datos(lineas):
-    # Busca la línea "SEÑOR" y toma nombre, dirección y comuna
-    # a partir de ella (mismas posiciones que usabas antes).
+    # Busca la línea "SEÑOR(ES)" y toma nombre, dirección y comuna
+    # de las líneas siguientes.
     for i, linea in enumerate(lineas):
-        if "SEÑOR" in linea.upper() and i + 4 < len(lineas):
-            return lineas[i + 1], lineas[i + 2], lineas[i + 4]
+        if "SENOR" in normalizar(linea):
+            resto = lineas[i + 1:i + 6]
+            if len(resto) >= 3:
+                nombre = resto[0]
+                direccion = resto[1]
+                comuna = resto[3] if len(resto) > 3 else resto[2]
+                return nombre, direccion, comuna
     return None
 
 
@@ -120,7 +152,10 @@ st.write("Bienvenido al planificador de rutas de reparto")
 # Escanear factura (automático: foto -> OCR -> guardar)
 # ---------------------------------------------------------------
 st.subheader("📸 Escanear factura")
-foto = st.camera_input("Tomar foto de factura PRISA o PRILOGI")
+foto = st.file_uploader(
+    "Tomar o subir foto de factura PRISA o PRILOGI",
+    type=["jpg", "jpeg", "png"]
+)
 
 if foto is not None:
     firma = hashlib.md5(foto.getvalue()).hexdigest()
@@ -130,9 +165,12 @@ if foto is not None:
         st.session_state["ultima_foto"] = firma
 
         with st.spinner("Leyendo factura..."):
-            imagen = np.array(Image.open(foto).convert("RGB"))
+            img = ImageOps.exif_transpose(Image.open(foto)).convert("RGB")
+            img.thumbnail((1800, 1800))  # fotos del celular son enormes
+            imagen = np.array(img)
             ocr = cargar_ocr()(imagen)
             lineas = [l.strip() for l in (ocr.txts or []) if l.strip()]
+            st.session_state["texto_ocr"] = "\n".join(lineas)
             datos = extraer_datos(lineas)
 
             if not datos:
@@ -159,7 +197,8 @@ if foto is not None:
                     st.session_state["comuna_cliente"] = comuna_f
                     st.session_state["resultado"] = (
                         "warning",
-                        "No encontré la dirección. Corrígela abajo y guarda."
+                        f"No encontré la dirección «{dir_f}, {comuna_f}». "
+                        "Corrígela abajo (calle y número reales) y guarda."
                     )
                 elif ya_existe:
                     st.session_state["resultado"] = (
@@ -182,6 +221,10 @@ if foto is not None:
     tipo, mensaje = st.session_state.get("resultado", (None, None))
     if tipo:
         getattr(st, tipo)(mensaje)
+
+    if "texto_ocr" in st.session_state:
+        with st.expander("Texto detectado en la factura"):
+            st.text(st.session_state["texto_ocr"])
 
 # ---------------------------------------------------------------
 # Registro manual (por si falla el escaneo)
