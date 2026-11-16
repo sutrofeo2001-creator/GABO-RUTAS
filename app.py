@@ -17,7 +17,6 @@ from PIL import Image, ImageOps
 
 Acceso con contraseña
 
------------------------------------------------------------
 
 password = st.text_input("🔒 Contraseña de acceso", type="password")
 
@@ -26,7 +25,6 @@ if password:
 st.error("Contraseña incorrecta")
 st.stop()
 
------------------------------------------------------------
 
 Conexiones y configuración
 
