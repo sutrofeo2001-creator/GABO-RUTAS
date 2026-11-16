@@ -15,8 +15,6 @@ from streamlit_webrtc import webrtc_streamer, WebRtcMode
 from PIL import Image, ImageOps
 
 
-Acceso con contraseña
-
 
 password = st.text_input("🔒 Contraseña de acceso", type="password")
 
