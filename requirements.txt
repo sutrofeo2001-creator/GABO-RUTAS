@@ -1,5 +1,9 @@
-streamlit
+streamlit>=1.37
+streamlit-webrtc
+av
 supabase
 requests
 rapidocr
 onnxruntime
+pillow
+numpy
