@@ -488,7 +488,6 @@ with st.form("registro_cliente"):
                 st.warning(f"Cliente {nombre} guardado." + AVISO_NIVEL[nivel])
         else:
             st.warning("Completa todos los campos")
-
 # Lista de clientes
 st.subheader("📋 Lista de clientes")
 
@@ -497,7 +496,8 @@ respuesta = supabase.table("Clientes").select(
 ).order("id").execute()
 
 if respuesta.data:
-    st.dataframe(respuesta.data, hide_index=True)
+    with st.expander(f"Ver todos los clientes ({len(respuesta.data)})"):
+        st.dataframe(respuesta.data, hide_index=True)
 else:
     st.info("Todavía no hay clientes registrados")
 
@@ -505,20 +505,44 @@ else:
 st.subheader("🚚 Planificar ruta del día")
 
 if respuesta.data:
-    opciones = {
-        f"{c['Cliente']} - {c['Comuna']} (ID {c['id']})": c["id"]
-        for c in respuesta.data
-    }
+    mapa_clientes = {c["id"]: c for c in respuesta.data}
 
-    seleccionados = st.multiselect(
-        "Selecciona los clientes que Gabo visitará:",
-        options=list(opciones.keys())
+    if "ruta_ids" not in st.session_state:
+        st.session_state["ruta_ids"] = []
+    # Saca de la ruta clientes que ya no existan
+    st.session_state["ruta_ids"] = [
+        i for i in st.session_state["ruta_ids"] if i in mapa_clientes
+    ]
+
+    def agregar_a_ruta():
+        elegido = st.session_state.get("buscador_cliente")
+        if elegido is not None and elegido not in st.session_state["ruta_ids"]:
+            st.session_state["ruta_ids"].append(elegido)
+        st.session_state["buscador_cliente"] = None  # deja el buscador limpio
+
+    st.selectbox(
+        "🔍 Buscar cliente (escribe el nombre)",
+        options=list(mapa_clientes.keys()),
+        format_func=lambda i: f"{mapa_clientes[i]['Cliente']} · {mapa_clientes[i]['Comuna']}",
+        index=None,
+        placeholder="Escribe el nombre del cliente...",
+        key="buscador_cliente",
+        on_change=agregar_a_ruta,
     )
 
-    st.info(f"Clientes seleccionados: {len(seleccionados)}")
+    st.info(f"Clientes en la ruta: {len(st.session_state['ruta_ids'])}")
 
-    ids_seleccionados = [opciones[n] for n in seleccionados]
-    clientes_ruta = [c for c in respuesta.data if c["id"] in ids_seleccionados]
+    for id_ruta in list(st.session_state["ruta_ids"]):
+        if st.button(f"❌ Quitar {mapa_clientes[id_ruta]['Cliente']}", key=f"quitar_{id_ruta}"):
+            st.session_state["ruta_ids"].remove(id_ruta)
+            st.rerun()
+
+    if st.session_state["ruta_ids"]:
+        if st.button("🗑️ Vaciar ruta"):
+            st.session_state["ruta_ids"] = []
+            st.rerun()
+
+    clientes_ruta = [mapa_clientes[i] for i in st.session_state["ruta_ids"]]
 
     if clientes_ruta:
         coordenadas_ruta = [(BODEGA_LATITUD, BODEGA_LONGITUD)]
@@ -579,3 +603,6 @@ if respuesta.data:
                 st.error("No se pudieron consultar las distancias. Intenta nuevamente.")
 else:
     st.warning("Primero debes registrar clientes.")
+
+
+              
