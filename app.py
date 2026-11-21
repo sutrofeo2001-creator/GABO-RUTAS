@@ -704,6 +704,167 @@ with st.form("registro_cliente"):
                 st.warning(f"Cliente {nombre} guardado." + AVISO_NIVEL[nivel])
         else:
             st.warning("Completa todos los campos")
+# Lista de clientes
+st.subheader("📋 Lista de clientes")
+
+respuesta = supabase.table("Clientes").select(
+    "id,Cliente,Direccion,Comuna,Latitud,Longitud"
+).eq("empresa_id", EMPRESA_ID).order("id").execute()
+
+if respuesta.data:
+    with st.expander(f"Ver todos los clientes ({len(respuesta.data)})"):
+        st.dataframe(respuesta.data, hide_index=True)
+else:
+    st.info("Todavía no hay clientes registrados")
+
+# Eliminar cliente
+st.subheader("🗑️ Eliminar cliente")
+if respuesta.data:
+    mapa_borrar = {c["id"]: c for c in respuesta.data}
+
+    def eliminar_cliente(id_cliente):
+        try:
+            (
+                supabase.table("Clientes").delete()
+                .eq("id", id_cliente).eq("empresa_id", EMPRESA_ID).execute()
+            )
+            if id_cliente in st.session_state.get("ruta_ids", []):
+                st.session_state["ruta_ids"].remove(id_cliente)
+            st.session_state["mensaje_borrado"] = "Cliente eliminado."
+        except Exception as e:
+            st.session_state["mensaje_borrado"] = f"No se pudo eliminar: {e}"
+        st.session_state["cliente_a_borrar"] = None
+        st.session_state["confirmar_borrado"] = False
+
+    if "mensaje_borrado" in st.session_state:
+        st.success(st.session_state.pop("mensaje_borrado"))
+
+    a_borrar = st.selectbox(
+        "Buscar cliente a eliminar",
+        options=list(mapa_borrar.keys()),
+        format_func=lambda i: f"{mapa_borrar[i]['Cliente']} · {mapa_borrar[i]['Comuna']}",
+        index=None,
+        placeholder="Escribe el nombre del cliente...",
+        key="cliente_a_borrar",
+    )
+    if a_borrar is not None:
+        c_b = mapa_borrar[a_borrar]
+        st.warning(
+            f"Vas a eliminar a **{c_b['Cliente']}** "
+            f"({c_b['Direccion']}, {c_b['Comuna']}). No se puede deshacer."
+        )
+        confirmar = st.checkbox("Sí, quiero eliminarlo", key="confirmar_borrado")
+        st.button(
+            "🗑️ Eliminar cliente",
+            disabled=not confirmar,
+            on_click=eliminar_cliente,
+            args=(a_borrar,),
+        )
+else:
+    st.info("No hay clientes para eliminar.")
+
+# Planificar ruta del día
+st.subheader("🚚 Planificar ruta del día")
+
+if respuesta.data:
+    mapa_clientes = {c["id"]: c for c in respuesta.data}
+
+    if "ruta_ids" not in st.session_state:
+        st.session_state["ruta_ids"] = []
+    # Saca de la ruta clientes que ya no existan
+    st.session_state["ruta_ids"] = [
+        i for i in st.session_state["ruta_ids"] if i in mapa_clientes
+    ]
+
+    def agregar_a_ruta():
+        elegido = st.session_state.get("buscador_cliente")
+        if elegido is not None and elegido not in st.session_state["ruta_ids"]:
+            st.session_state["ruta_ids"].append(elegido)
+        st.session_state["buscador_cliente"] = None  # deja el buscador limpio
+
+    st.selectbox(
+        "🔍 Buscar cliente (escribe el nombre)",
+        options=list(mapa_clientes.keys()),
+        format_func=lambda i: f"{mapa_clientes[i]['Cliente']} · {mapa_clientes[i]['Comuna']}",
+        index=None,
+        placeholder="Escribe el nombre del cliente...",
+        key="buscador_cliente",
+        on_change=agregar_a_ruta,
+    )
+
+    st.info(f"Clientes en la ruta: {len(st.session_state['ruta_ids'])}")
+
+    for id_ruta in list(st.session_state["ruta_ids"]):
+        if st.button(f"❌ Quitar {mapa_clientes[id_ruta]['Cliente']}", key=f"quitar_{id_ruta}"):
+            st.session_state["ruta_ids"].remove(id_ruta)
+            st.rerun()
+
+    if st.session_state["ruta_ids"]:
+        if st.button("🗑️ Vaciar ruta"):
+            st.session_state["ruta_ids"] = []
+            st.rerun()
+
+    clientes_ruta = [mapa_clientes[i] for i in st.session_state["ruta_ids"]]
+
+    if clientes_ruta:
+        coordenadas_ruta = [(BODEGA_LATITUD, BODEGA_LONGITUD)]
+
+        for c in clientes_ruta:
+            if c.get("Latitud") is not None and c.get("Longitud") is not None:
+                coordenadas_ruta.append((c["Latitud"], c["Longitud"]))
+
+        if len(coordenadas_ruta) - 1 != len(clientes_ruta):
+            st.error(
+                "Hay clientes sin coordenadas. "
+                "Revisa sus direcciones antes de calcular la ruta."
+            )
+            st.stop()
+
+        if len(clientes_ruta) > 8:
+            st.warning("Por ahora puedes seleccionar hasta 8 clientes por ruta.")
+        else:
+            try:
+                distancias, duraciones = obtener_matriz_rutas(coordenadas_ruta)
+                st.success("Distancias por carretera calculadas correctamente")
+
+                mejor_orden, distancia_total = optimizar_ruta(distancias)
+                orden_clientes = [clientes_ruta[i - 1] for i in mejor_orden[1:-1]]
+
+                direcciones_maps = (
+                    [BODEGA_DIRECCION]
+                    + [f"{c['Latitud']},{c['Longitud']}" for c in orden_clientes]
+                    + [BODEGA_DIRECCION]
+                )
+
+                st.success(f"Ruta optimizada: {distancia_total / 1000:.2f} km")
+
+                st.subheader("📍 Orden de visitas")
+                for posicion, indice in enumerate(mejor_orden):
+                    if indice == 0:
+                        st.write(f"{posicion + 1}. 🏠 {BODEGA_NOMBRE}")
+                    else:
+                        st.write(f"{posicion + 1}. 🚚 {clientes_ruta[indice - 1]['Cliente']}")
+
+                st.subheader("🚚 Distancia por tramo")
+                for i in range(len(mejor_orden) - 1):
+                    km_tramo = distancias[mejor_orden[i]][mejor_orden[i + 1]] / 1000
+                    origen = BODEGA_NOMBRE if mejor_orden[i] == 0 else clientes_ruta[mejor_orden[i] - 1]["Cliente"]
+                    destino = BODEGA_NOMBRE if mejor_orden[i + 1] == 0 else clientes_ruta[mejor_orden[i + 1] - 1]["Cliente"]
+                    st.write(f"🚚 {origen} → {destino}: {km_tramo:.2f} km")
+
+                url_maps = "https://www.google.com/maps/dir/?" + urlencode({
+                    "api": 1,
+                    "origin": direcciones_maps[0],
+                    "destination": direcciones_maps[-1],
+                    "waypoints": "|".join(direcciones_maps[1:-1]),
+                    "travelmode": "driving"
+                })
+                st.link_button("🗺️ Abrir ruta en Google Maps", url_maps)
+
+            except (requests.RequestException, ValueError, KeyError, TypeError):
+                st.error("No se pudieron consultar las distancias. Intenta nuevamente.")
+else:
+    st.warning("Primero debes registrar clientes.")
 
 
 
