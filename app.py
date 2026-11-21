@@ -8,30 +8,17 @@ import unicodedata
 import numpy as np
 import requests
 from itertools import permutations
-from urllib.parse import urlencode
+from urllib.parse import urlencode, unquote_plus
 from supabase import create_client
 from rapidocr import RapidOCR
 from streamlit_webrtc import webrtc_streamer, WebRtcMode
 from PIL import Image, ImageOps
-
-# Acceso con contraseña
-password = st.text_input("🔒 Contraseña de acceso", type="password")
-
-if not hmac.compare_digest(password, st.secrets["APP_PASSWORD"]):
-    if password:
-        st.error("Contraseña incorrecta")
-    st.stop()
 
 # Conexiones y configuración
 supabase = create_client(
     st.secrets["SUPABASE_URL"],
     st.secrets["SUPABASE_SERVICE_ROLE_KEY"]
 )
-
-BODEGA_NOMBRE = "Bodega Quilicura"
-BODEGA_DIRECCION = "Av. Presidente Eduardo Frei Montalva 8301, Quilicura"
-BODEGA_LATITUD = -33.361074
-BODEGA_LONGITUD = -70.697689
 
 
 # Funciones
@@ -81,18 +68,7 @@ def obtener_coordenadas(direccion, comuna):
     return None, None
 
 
-def leer_coordenadas(texto):
-    # Acepta coordenadas ("-33.36, -70.69") o un enlace de Google Maps
-    texto = texto.strip()
-    if texto.startswith("http"):
-        try:
-            r = requests.get(
-                texto, allow_redirects=True, timeout=10,
-                headers={"User-Agent": "Mozilla/5.0"}
-            )
-            texto = r.url
-        except requests.RequestException:
-            pass
+def _parsear_coordenadas(texto):
     patrones = (
         r"@(-?\d+\.\d+),(-?\d+\.\d+)",
         r"!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)",
@@ -105,6 +81,34 @@ def leer_coordenadas(texto):
             if -90 <= lat <= 90 and -180 <= lon <= 180:
                 return lat, lon
     return None, None
+
+
+def leer_enlace(texto):
+    # Acepta coordenadas ("-33.36, -70.69") o un enlace de Google Maps.
+    # Devuelve (lat, lon, nombre_del_lugar). El nombre puede venir vacío.
+    texto = texto.strip()
+    nombre = ""
+    if texto.startswith("http"):
+        try:
+            r = requests.get(
+                texto, allow_redirects=True, timeout=10,
+                headers={"User-Agent": "Mozilla/5.0"}
+            )
+            texto = r.url
+        except requests.RequestException:
+            pass
+        m = re.search(r"/maps/place/([^/@?]+)", texto)
+        if m:
+            nombre = unquote_plus(m.group(1)).strip()
+            if re.match(r"^-?\d", nombre):  # si es solo coordenadas, no sirve de nombre
+                nombre = ""
+    lat, lon = _parsear_coordenadas(texto)
+    return lat, lon, nombre
+
+
+def leer_coordenadas(texto):
+    lat, lon, _ = leer_enlace(texto)
+    return lat, lon
 
 
 def direccion_desde_coordenadas(lat, lon):
@@ -213,20 +217,179 @@ def extraer_datos(lineas):
                 comuna = resto[3] if len(resto) > 3 else resto[2]
                 return nombre, direccion, comuna
     return None
+# Empresas y acceso
+def hash_clave(codigo, clave):
+    sal = ("gaborutas:" + codigo.strip().lower()).encode()
+    return hashlib.pbkdf2_hmac("sha256", clave.encode(), sal, 200_000).hex()
+
+
+def datos_bodega(direccion, ubicacion):
+    # Coordenadas de la bodega: desde coordenadas/enlace o desde la dirección
+    if ubicacion.strip():
+        lat, lon, _ = leer_enlace(ubicacion)
+        return lat, lon
+    return _buscar_nominatim(f"{direccion}, Chile")
+
+
+if "empresa" not in st.session_state:
+    st.session_state["empresa"] = None
+if "es_admin" not in st.session_state:
+    st.session_state["es_admin"] = False
+
+if st.session_state["empresa"] is None and not st.session_state["es_admin"]:
+    st.title("🚚 GABO RUTAS")
+    codigo_in = st.text_input("Código de empresa")
+    clave_in = st.text_input("🔒 Contraseña", type="password")
+    if st.button("Entrar"):
+        codigo_n = codigo_in.strip().lower()
+        if codigo_n == "admin":
+            if hmac.compare_digest(clave_in, st.secrets["APP_PASSWORD"]):
+                st.session_state["es_admin"] = True
+                st.rerun()
+            else:
+                st.error("Código o contraseña incorrectos")
+        else:
+            filas = (
+                supabase.table("Empresas").select("*")
+                .eq("codigo", codigo_n).execute().data
+            )
+            if filas and hmac.compare_digest(
+                filas[0]["clave_hash"], hash_clave(codigo_n, clave_in)
+            ):
+                st.session_state["empresa"] = filas[0]
+                st.rerun()
+            else:
+                st.error("Código o contraseña incorrectos")
+    st.stop()
+
+# Panel de administrador (código "admin" + la clave APP_PASSWORD)
+if st.session_state["es_admin"]:
+    st.title("🛠️ Administrador")
+    if st.button("🚪 Cerrar sesión"):
+        st.session_state.clear()
+        st.rerun()
+
+    st.subheader("➕ Crear empresa")
+    with st.form("crear_empresa"):
+        c_codigo = st.text_input("Código de acceso (sin espacios, ej: prisa)")
+        c_nombre = st.text_input("Nombre de la empresa")
+        c_clave = st.text_input("Contraseña de la empresa", type="password")
+        c_bnombre = st.text_input("Nombre de la bodega", value="Bodega principal")
+        c_bdir = st.text_input("Dirección de la bodega (con comuna)")
+        c_bubic = st.text_input(
+            "Ubicación exacta de la bodega (opcional)",
+            help="Coordenadas o enlace de Google Maps."
+        )
+        crear = st.form_submit_button("Crear empresa")
+
+        if crear:
+            codigo_n = c_codigo.strip().lower()
+            if not (codigo_n and c_nombre.strip() and c_clave and c_bdir.strip()):
+                st.warning("Completa código, nombre, contraseña y dirección de la bodega.")
+            elif codigo_n == "admin" or " " in codigo_n:
+                st.error("Ese código no es válido (sin espacios y distinto de «admin»).")
+            else:
+                lat_b, lon_b = datos_bodega(c_bdir, c_bubic)
+                existe = (
+                    supabase.table("Empresas").select("id")
+                    .eq("codigo", codigo_n).execute().data
+                )
+                if existe:
+                    st.error("Ya existe una empresa con ese código.")
+                elif lat_b is None:
+                    st.error("No encontré la bodega. Pega la ubicación exacta.")
+                else:
+                    supabase.table("Empresas").insert({
+                        "codigo": codigo_n,
+                        "nombre": c_nombre.strip(),
+                        "clave_hash": hash_clave(codigo_n, c_clave),
+                        "bodega_nombre": c_bnombre.strip() or "Bodega principal",
+                        "bodega_direccion": c_bdir.strip(),
+                        "bodega_latitud": lat_b,
+                        "bodega_longitud": lon_b,
+                    }).execute()
+                    st.success(f"Empresa {c_nombre.strip()} creada. Código de acceso: {codigo_n}")
+
+    empresas = (
+        supabase.table("Empresas")
+        .select("id,codigo,nombre,bodega_nombre,bodega_direccion")
+        .order("id").execute().data
+    )
+    st.subheader("🏢 Empresas")
+    if empresas:
+        st.dataframe(empresas, hide_index=True)
+        st.subheader("🔑 Cambiar contraseña de una empresa")
+        with st.form("cambiar_clave"):
+            e_id = st.selectbox(
+                "Empresa",
+                options=[e["id"] for e in empresas],
+                format_func=lambda i: next(e["nombre"] for e in empresas if e["id"] == i)
+            )
+            nueva_clave = st.text_input("Nueva contraseña", type="password")
+            if st.form_submit_button("Cambiar contraseña"):
+                if nueva_clave:
+                    cod_e = next(e["codigo"] for e in empresas if e["id"] == e_id)
+                    supabase.table("Empresas").update(
+                        {"clave_hash": hash_clave(cod_e, nueva_clave)}
+                    ).eq("id", e_id).execute()
+                    st.success("Contraseña cambiada")
+                else:
+                    st.warning("Escribe la nueva contraseña.")
+    else:
+        st.info("Todavía no hay empresas creadas.")
+    st.stop()
+
+# Empresa que inició sesión: todo lo que sigue usa SUS datos
+EMPRESA = st.session_state["empresa"]
+EMPRESA_ID = EMPRESA["id"]
+BODEGA_NOMBRE = EMPRESA["bodega_nombre"]
+BODEGA_DIRECCION = EMPRESA["bodega_direccion"]
+BODEGA_LATITUD = EMPRESA["bodega_latitud"]
+BODEGA_LONGITUD = EMPRESA["bodega_longitud"]
+
 # Pantalla principal
 st.title("🚚 GABO RUTAS")
-st.write("Bienvenido al planificador de rutas de reparto")
+st.write(f"🏢 **{EMPRESA['nombre']}**")
+if st.button("🚪 Cerrar sesión"):
+    st.session_state.clear()
+    st.rerun()
+
+with st.expander("⚙️ Bodega de la empresa"):
+    st.write(f"**{BODEGA_NOMBRE}**: {BODEGA_DIRECCION}")
+    with st.form("editar_bodega"):
+        b_nombre = st.text_input("Nombre de la bodega", value=BODEGA_NOMBRE)
+        b_dir = st.text_input("Dirección de la bodega (con comuna)", value=BODEGA_DIRECCION)
+        b_ubic = st.text_input(
+            "Ubicación exacta (opcional)",
+            help="Coordenadas o enlace de Google Maps."
+        )
+        if st.form_submit_button("Guardar bodega"):
+            lat_n, lon_n = datos_bodega(b_dir, b_ubic)
+            if not b_dir.strip():
+                st.warning("Escribe la dirección de la bodega.")
+            elif lat_n is None:
+                st.error("No encontré esa dirección. Pega la ubicación exacta.")
+            else:
+                nuevos = {
+                    "bodega_nombre": b_nombre.strip() or "Bodega",
+                    "bodega_direccion": b_dir.strip(),
+                    "bodega_latitud": lat_n,
+                    "bodega_longitud": lon_n,
+                }
+                supabase.table("Empresas").update(nuevos).eq("id", EMPRESA_ID).execute()
+                st.session_state["empresa"] = {**EMPRESA, **nuevos}
+                st.success("Bodega actualizada. Se aplica en la próxima ruta que calcules.")
 
 # Escanear factura (automático: foto -> OCR -> guardar)
 st.subheader("📸 Escanear factura en vivo")
 st.caption("Enciende la cámara y apunta a la zona «SEÑOR(ES)» de la factura.")
 
-# Estado compartido entre la cámara (otro hilo) y la pantalla
-@st.cache_resource
-def estado_escaner():
-    return {"lock": threading.Lock(), "ocupado": False, "ultimo": 0.0, "datos": None}
-
-estado = estado_escaner()
+# Estado de la cámara: uno por sesión (cada empresa ve solo lo suyo)
+if "estado_escaner" not in st.session_state:
+    st.session_state["estado_escaner"] = {
+        "lock": threading.Lock(), "ocupado": False, "ultimo": 0.0, "datos": None
+    }
+estado = st.session_state["estado_escaner"]
 ocr_en_vivo = cargar_ocr()
 
 
@@ -339,6 +502,7 @@ if foto is not None:
                     ya_existe = (
                         supabase.table("Clientes")
                         .select("id")
+                        .eq("empresa_id", EMPRESA_ID)
                         .eq("Cliente", nombre_f)
                         .eq("Direccion", dir_f)
                         .execute()
@@ -358,6 +522,7 @@ if foto is not None:
                         )
                     else:
                         supabase.table("Clientes").insert({
+                            "empresa_id": EMPRESA_ID,
                             "Cliente": nombre_f,
                             "Direccion": dir_f,
                             "Comuna": comuna_f,
@@ -393,6 +558,56 @@ if foto is not None:
         st.session_state.pop("foto_procesada", None)
         st.rerun()
 # Registro manual (por si falla el escaneo)
+
+st.subheader("⚡ Guardar con solo un enlace de Google Maps")
+st.caption(
+    "Pega el enlace de la ubicación (o las coordenadas). "
+    "La app busca la dirección y guarda el cliente al tiro."
+)
+enlace_rapido = st.text_input("Enlace de Google Maps o coordenadas", key="enlace_rapido")
+nombre_rapido = st.text_input(
+    "Nombre del cliente (solo si el enlace no lo trae)", key="nombre_rapido"
+)
+if st.button("⚡ Buscar y guardar"):
+    with st.spinner("Buscando ubicación..."):
+        lat_r, lon_r, lugar_r = leer_enlace(enlace_rapido)
+        if lat_r is None:
+            st.error(
+                "No pude sacar la ubicación de ese enlace. "
+                "Prueba pegando las coordenadas (ej: -31.7745, -70.9697)."
+            )
+        else:
+            nombre_r = nombre_rapido.strip() or lugar_r
+            if not nombre_r:
+                st.warning(
+                    "El enlace no trae el nombre del lugar. Escribe el nombre "
+                    "del cliente arriba y toca el botón otra vez."
+                )
+            else:
+                dir_r, com_r = direccion_desde_coordenadas(lat_r, lon_r)
+                dir_r = dir_r or "Ubicación por coordenadas"
+                com_r = com_r or "Sin comuna"
+                ya_r = (
+                    supabase.table("Clientes")
+                    .select("id")
+                    .eq("empresa_id", EMPRESA_ID)
+                    .eq("Cliente", nombre_r)
+                    .eq("Direccion", dir_r)
+                    .execute()
+                    .data
+                )
+                if ya_r:
+                    st.info(f"{nombre_r} ya estaba registrado.")
+                else:
+                    supabase.table("Clientes").insert({
+                        "empresa_id": EMPRESA_ID,
+                        "Cliente": nombre_r,
+                        "Direccion": dir_r,
+                        "Comuna": com_r,
+                        "Latitud": lat_r,
+                        "Longitud": lon_r
+                    }).execute()
+                    st.success(f"✅ {nombre_r} guardado: {dir_r}, {com_r}")
 
 st.subheader("📍 Agregar por coordenadas")
 st.caption(
@@ -476,6 +691,7 @@ with st.form("registro_cliente"):
                     st.stop()
 
             supabase.table("Clientes").insert({
+                "empresa_id": EMPRESA_ID,
                 "Cliente": nombre,
                 "Direccion": direccion,
                 "Comuna": comuna,
@@ -488,121 +704,7 @@ with st.form("registro_cliente"):
                 st.warning(f"Cliente {nombre} guardado." + AVISO_NIVEL[nivel])
         else:
             st.warning("Completa todos los campos")
-# Lista de clientes
-st.subheader("📋 Lista de clientes")
 
-respuesta = supabase.table("Clientes").select(
-    "id,Cliente,Direccion,Comuna,Latitud,Longitud"
-).order("id").execute()
-
-if respuesta.data:
-    with st.expander(f"Ver todos los clientes ({len(respuesta.data)})"):
-        st.dataframe(respuesta.data, hide_index=True)
-else:
-    st.info("Todavía no hay clientes registrados")
-
-# Planificar ruta del día
-st.subheader("🚚 Planificar ruta del día")
-
-if respuesta.data:
-    mapa_clientes = {c["id"]: c for c in respuesta.data}
-
-    if "ruta_ids" not in st.session_state:
-        st.session_state["ruta_ids"] = []
-    # Saca de la ruta clientes que ya no existan
-    st.session_state["ruta_ids"] = [
-        i for i in st.session_state["ruta_ids"] if i in mapa_clientes
-    ]
-
-    def agregar_a_ruta():
-        elegido = st.session_state.get("buscador_cliente")
-        if elegido is not None and elegido not in st.session_state["ruta_ids"]:
-            st.session_state["ruta_ids"].append(elegido)
-        st.session_state["buscador_cliente"] = None  # deja el buscador limpio
-
-    st.selectbox(
-        "🔍 Buscar cliente (escribe el nombre)",
-        options=list(mapa_clientes.keys()),
-        format_func=lambda i: f"{mapa_clientes[i]['Cliente']} · {mapa_clientes[i]['Comuna']}",
-        index=None,
-        placeholder="Escribe el nombre del cliente...",
-        key="buscador_cliente",
-        on_change=agregar_a_ruta,
-    )
-
-    st.info(f"Clientes en la ruta: {len(st.session_state['ruta_ids'])}")
-
-    for id_ruta in list(st.session_state["ruta_ids"]):
-        if st.button(f"❌ Quitar {mapa_clientes[id_ruta]['Cliente']}", key=f"quitar_{id_ruta}"):
-            st.session_state["ruta_ids"].remove(id_ruta)
-            st.rerun()
-
-    if st.session_state["ruta_ids"]:
-        if st.button("🗑️ Vaciar ruta"):
-            st.session_state["ruta_ids"] = []
-            st.rerun()
-
-    clientes_ruta = [mapa_clientes[i] for i in st.session_state["ruta_ids"]]
-
-    if clientes_ruta:
-        coordenadas_ruta = [(BODEGA_LATITUD, BODEGA_LONGITUD)]
-
-        for c in clientes_ruta:
-            if c.get("Latitud") is not None and c.get("Longitud") is not None:
-                coordenadas_ruta.append((c["Latitud"], c["Longitud"]))
-
-        if len(coordenadas_ruta) - 1 != len(clientes_ruta):
-            st.error(
-                "Hay clientes sin coordenadas. "
-                "Revisa sus direcciones antes de calcular la ruta."
-            )
-            st.stop()
-
-        if len(clientes_ruta) > 8:
-            st.warning("Por ahora puedes seleccionar hasta 8 clientes por ruta.")
-        else:
-            try:
-                distancias, duraciones = obtener_matriz_rutas(coordenadas_ruta)
-                st.success("Distancias por carretera calculadas correctamente")
-
-                mejor_orden, distancia_total = optimizar_ruta(distancias)
-                orden_clientes = [clientes_ruta[i - 1] for i in mejor_orden[1:-1]]
-
-                direcciones_maps = (
-                    [BODEGA_DIRECCION]
-                    + [f"{c['Latitud']},{c['Longitud']}" for c in orden_clientes]
-                    + [BODEGA_DIRECCION]
-                )
-
-                st.success(f"Ruta optimizada: {distancia_total / 1000:.2f} km")
-
-                st.subheader("📍 Orden de visitas")
-                for posicion, indice in enumerate(mejor_orden):
-                    if indice == 0:
-                        st.write(f"{posicion + 1}. 🏠 {BODEGA_NOMBRE}")
-                    else:
-                        st.write(f"{posicion + 1}. 🚚 {clientes_ruta[indice - 1]['Cliente']}")
-
-                st.subheader("🚚 Distancia por tramo")
-                for i in range(len(mejor_orden) - 1):
-                    km_tramo = distancias[mejor_orden[i]][mejor_orden[i + 1]] / 1000
-                    origen = BODEGA_NOMBRE if mejor_orden[i] == 0 else clientes_ruta[mejor_orden[i] - 1]["Cliente"]
-                    destino = BODEGA_NOMBRE if mejor_orden[i + 1] == 0 else clientes_ruta[mejor_orden[i + 1] - 1]["Cliente"]
-                    st.write(f"🚚 {origen} → {destino}: {km_tramo:.2f} km")
-
-                url_maps = "https://www.google.com/maps/dir/?" + urlencode({
-                    "api": 1,
-                    "origin": direcciones_maps[0],
-                    "destination": direcciones_maps[-1],
-                    "waypoints": "|".join(direcciones_maps[1:-1]),
-                    "travelmode": "driving"
-                })
-                st.link_button("🗺️ Abrir ruta en Google Maps", url_maps)
-
-            except (requests.RequestException, ValueError, KeyError, TypeError):
-                st.error("No se pudieron consultar las distancias. Intenta nuevamente.")
-else:
-    st.warning("Primero debes registrar clientes.")
 
 
               
